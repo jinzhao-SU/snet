@@ -1,0 +1,25 @@
+# snet
+--data_path
+/data/zzhao/uav_regression/main_test/data_tasks.npy
+--init_path
+/data/zzhao/uav_regression/main_test/data_init_density.npy
+--label_path
+/data/zzhao/uav_regression/main_test/training_label_density.npy
+--lr
+0.005
+--momentum
+0.9
+--weight_decay
+0.0001
+--batch_size
+4
+--num_epochs
+50
+--split_ratio
+0.9
+--checkpoint_dir
+/home/zjin04/data/uav_regression/check_point
+--model_checkpoint_name
+uav_regression_snet
+--load_from_sub_checkpoint
+/home/zjin04/data/uav_regression/check_point/uav_regression_sub_test
