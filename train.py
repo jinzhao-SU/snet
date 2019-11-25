@@ -14,8 +14,12 @@ from utils import draw_roc_curve, calculate_precision_recall, visualize_sum_test
 from correlation import Correlation
 
 
+image_saving_dir = '/home/zjin04/data/uav_regression/'
+
+
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
+cor = Correlation()
 
 def embedding(input, time_stamp=None):
     task_md = torch.zeros([input.shape[0], 100, 100])
@@ -41,7 +45,6 @@ def train(submodel, model, train_loader, device, optimizer, criterion, epoch, ba
 
     for batch_idx, data in enumerate(tqdm(train_loader)):
         optimizer.zero_grad()
-
         task = data['task'].to(device).float()
         #print("task shape", task.shape)
         init = data['init'].to(device).float()
@@ -53,7 +56,8 @@ def train(submodel, model, train_loader, device, optimizer, criterion, epoch, ba
         for i in range(task.shape[0]):#b 60 15 5
             # print("i shape", task[:,i,:].shape)
             for j in range(task.shape[1]):
-                prediction_timestamp = submodel(embedding(task[i,j,:,:].squeeze()).to(device))
+                #prediction_timestamp = submodel(embedding(task[i,j,:,:].squeeze()).to(device))
+                prediction_timestamp = submodel(task[i, j, :, :].squeeze().to(device))
             #input 15 4 output 15 100 100
                 prediction_timestamp = torch.sum(prediction_timestamp, dim=0)
                 sub_prediction[i][j] = prediction_timestamp
@@ -76,11 +80,11 @@ def train(submodel, model, train_loader, device, optimizer, criterion, epoch, ba
 
         if batch_idx % 50 == 0 or batch_idx == len(train_loader) - 1:
             sum_epoch_loss = sum_running_loss / num_images
-            visualize_sum_training_result(init, prediction, sub_prediction, label.data, batch_idx, epoch, batch_size)
+            #visualize_sum_training_result(init, prediction, sub_prediction, label.data, batch_idx, epoch, batch_size)
             print('\nTraining phase: epoch: {} batch:{} Loss: {:.4f}\n'.format(epoch, batch_idx, sum_epoch_loss))
 
 
-def val(submodel, model, test_loader, device, criterion, epoch, batch_size):
+def val(path, submodel, model, test_loader, device, criterion, epoch, batch_size):
     submodel.eval()
     model.eval()
     sum_running_loss = 0.0
@@ -97,12 +101,14 @@ def val(submodel, model, test_loader, device, criterion, epoch, batch_size):
             for i in range(task.shape[0]):  #
                 # print("i shape", task[:,i,:].shape)
                 for j in range(task.shape[1]):
-                    prediction_timestamp = submodel(embedding(task[i, j, :, :].squeeze()).to(device))
+                    #prediction_timestamp = submodel(embedding(task[i, j, :, :].squeeze()).to(device))
+                    prediction_timestamp = submodel(task[i, j, :, :].squeeze().to(device))
                     # input 15 4 output 15 100 100
                     prediction_timestamp = torch.sum(prediction_timestamp, dim=0)
                     sub_prediction[i][j] = prediction_timestamp
                     # b 60 .100 100.
             sub_prediction = torch.unsqueeze(sub_prediction, 1)
+            #print('sub_prediction', sub_prediction.shape)
             prediction = model(subx=sub_prediction, mainx=init)
             # loss
             loss_mse = criterion(prediction, label.data)
@@ -111,17 +117,21 @@ def val(submodel, model, test_loader, device, criterion, epoch, batch_size):
             sum_running_loss += loss_mse.item() * init.size(0)
 
             # visualize the sum testing result
-            visualize_sum_testing_result(init, prediction, sub_prediction, label.data, batch_idx, epoch, batch_size)
-
+            visualize_sum_testing_result(path,init, prediction, sub_prediction, label.data, batch_idx, epoch, batch_size)
+            if batch_idx == 0:
+                prediction_output = prediction.cpu().detach().numpy()
+                label_output = label.cpu().detach().numpy()
+                init_output = init.cpu().detach().numpy()
+            else:
+                prediction_output = np.append(prediction.cpu().detach().numpy(), prediction_output, axis=0)
+                label_output = np.append(label.cpu().detach().numpy(), label_output, axis=0)
+                init_output = np.append(init.cpu().detach().numpy(), init_output, axis=0)
     sum_running_loss = sum_running_loss / len(test_loader.dataset)
-
-    prediction_output = prediction.cpu().detach().numpy()
-    label_output = label.cpu().detach().numpy()
-
     print('\nTesting phase: epoch: {} Loss: {:.4f}\n'.format(epoch, sum_running_loss))
-    return sum_running_loss, prediction_output, label_output
 
-def save_model(checkpoint_dir, model_checkpoint_name, model):
+    return sum_running_loss, prediction_output, label_output, init_output
+
+def save_model(checkpoint_dir,  model_checkpoint_name, model):
     model_save_path = '{}/{}'.format(checkpoint_dir, model_checkpoint_name)
     print('save model to: \n{}'.format(model_save_path))
     torch.save(model.state_dict(), model_save_path)
@@ -142,12 +152,18 @@ def main():
     parser.add_argument("--split_ratio", help="training/testing split ratio", required=True, type=float)
     parser.add_argument("--checkpoint_dir", help="checkpoint_dir", required=True, type=str)
     parser.add_argument("--model_checkpoint_name", help="model checkpoint name", required=True, type=str)
-    parser.add_argument("--load_from_checkpoint", type=str)
+    parser.add_argument("--load_from_sub_checkpoint", type=str, required=True)
+    parser.add_argument("--load_from_main_checkpoint", type=str)
+    parser.add_argument("--image_folder", type=str, required=True)
     parser.add_argument("--eval_only", dest='eval_only', action='store_true')
     args, unknown = parser.parse_known_args()
 
+    image_saving_path = image_saving_dir + args.image_folder
+
     if not os.path.exists(args.checkpoint_dir):
         os.mkdir(args.checkpoint_dir)
+    if not os.path.exists(args.checkpoint_dir + "/" + args.model_checkpoint_name):
+        os.mkdir(args.checkpoint_dir + "/" + args.model_checkpoint_name)
 
     device = torch.device("cuda")
 
@@ -168,11 +184,16 @@ def main():
 
     criterion  = nn.MSELoss(reduction='sum')
 
-    if args.load_from_checkpoint:
-        chkpt_model_path = args.load_from_checkpoint
-        print("Loading ", chkpt_model_path)
-        submodel.load_state_dict(torch.load(chkpt_model_path, map_location=device))
+    if args.load_from_sub_checkpoint:
+        chkpt_submodel_path = args.load_from_sub_checkpoint
+        print("Loading ", chkpt_submodel_path)
+        submodel.load_state_dict(torch.load(chkpt_submodel_path, map_location=device))
         #submodel = torch.load(chkpt_model_path)
+
+    if args.load_from_main_checkpoint:
+        chkpt_mainmodel_path = args.load_from_main_checkpoint
+        print("Loading ", chkpt_mainmodel_path)
+        model_ft.load_state_dict(torch.load(chkpt_mainmodel_path, map_location=device))
 
 
     model_ft = model_ft.to(device)
@@ -187,31 +208,37 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=30,drop_last=True)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=30, drop_last=True)
 
-    cor = Correlation()
-
-    # if args.eval_only:
-    #     loss, prediction_output, label_output = val(model_ft, test_loader, device, criterion, 0)
-    #     print('\nTesting phase: epoch: {} Loss: {:.4f}\n'.format(0, loss))
-    #     cor.corrcoef(prediction_output, label_output, ".", "correlation_test.png")
-    #     return True
+    # cor = Correlation()
+    correlation_path = image_saving_path
+    if args.eval_only:
+        print("eval only")
+        for epoch in range(5):
+            loss, prediction_output, label_output, init_output = val(image_saving_path, submodel, model_ft, test_loader,
+                                                                     device, criterion, epoch, args.batch_size)
+            cor_path = os.path.join(correlation_path, "epoch_" + str(epoch))
+            coef = cor.corrcoef(prediction_output, label_output, cor_path, "correlation_{0}.png".format(epoch))
+            correlation_init_label = cor.corrcoef(init_output,label_output, cor_path,"correlation_init_label{0}.png".format(epoch))
+            print('correlation coefficient : {0}\n'.format(coef))
+            print('correlation_init_label coefficient : {0}\n'.format(correlation_init_label))
+        return True
 
     best_loss = np.inf
-    coef = 0.0
     for epoch in range(args.num_epochs):
         print('Epoch {}/{}'.format(epoch, args.num_epochs - 1))
         print('-' * 80)
         exp_lr_scheduler.step()
+        cor_path = os.path.join(correlation_path, "epoch_" + str(epoch))
         train(submodel, model_ft, train_loader, device, optimizer_ft, criterion, epoch, args.batch_size)
-        loss, prediction_output, label_output = val(submodel,model_ft, test_loader, device, criterion, epoch, args.batch_size)
+        loss, prediction_output, label_output, init_output = val(image_saving_path, submodel,model_ft, test_loader, device, criterion, epoch, args.batch_size)
         if loss < best_loss:
-            save_model(checkpoint_dir=args.checkpoint_dir,
-                       model_checkpoint_name=args.model_checkpoint_name + '_' + str(loss),
+            save_model(checkpoint_dir=args.checkpoint_dir + "/" + args.model_checkpoint_name,
+                       model_checkpoint_name=args.model_checkpoint_name + "_epoch_" + str(epoch) + '_' + str(loss),
                        model=model_ft)
             best_loss = loss
-        cor_path = args.checkpoint_dir.replace("check_point", "testing_result")
-        cor_path = os.path.join(cor_path, "epoch_" + str(epoch))
         coef = cor.corrcoef(prediction_output, label_output, cor_path, "correlation_{0}.png".format(epoch))
+        correlation_init_label = cor.corrcoef(init_output,label_output, cor_path,"correlation_init_label{0}.png".format(epoch))
         print('correlation coefficient : {0}\n'.format(coef))
+        print('correlation_init_label coefficient : {0}\n'.format(correlation_init_label))
 
 if __name__ == '__main__':
     main()

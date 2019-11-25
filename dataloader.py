@@ -42,9 +42,28 @@ class UAVDatasetTuple(Dataset):
         init_md = self.init_md[idx]
         return init_md
 
+
     def _prepare_task(self, idx):
-        task_coordinate = self.task_md[idx]
-        return task_coordinate
+        #task_coordinate = self.task_md[idx]
+        input = self.task_md[idx]
+        #print("input shape", input.shape)
+        task_md = torch.zeros([input.shape[0],15, 100, 100])
+        for i in range(input.shape[0]):
+            # if i < 30:
+            #     continue
+            for j in range(15):
+                x1 = int(input[i][j][0])
+                y1 = int(input[i][j][1])
+                x2 = int(input[i][j][2])
+                y2 = int(input[i][j][3])
+                if x1 == 0 and y1 == 0 and x2 == 0 and y2 == 0:
+                    continue
+                else:
+                    task_md[i][j][x1][y1] = 1.00
+                    task_md[i][j][x2][y2] = 1.00
+            # if i > 30:
+            #     return task_md.reshape(input.shape[0],15,10000)
+        return task_md.reshape(input.shape[0],15,10000)
 
     def _get_label(self, idx):
         label_md = self.label_md[idx].reshape(100,100)
@@ -63,16 +82,16 @@ class UAVDatasetTuple(Dataset):
         return positive_ratio, negative_ratio
 
 if __name__ == '__main__':
-    data_path ='/data/zzhao/uav_regression/feature_extraction_data/data_tasks.npy'
+    data_path ='/data/zzhao/uav_regression/main_test/data_tasks.npy'
     init_path = '/data/zzhao/uav_regression/main_test/data_init_density.npy'
-    label_path = '/data/zzhao/uav_regression/feature_extraction_data/label_density.npy'
+    label_path = '/data/zzhao/uav_regression/main_test/training_label_density.npy'
 
     all_dataset = UAVDatasetTuple(task_path=data_path, init_path=init_path, label_path=label_path)
     sample = all_dataset[0]
     print(sample['task'].shape)
     count = 0
 
-    for idx, val in enumerate(sample['task'][0]):
-        if val == 1.00:
-            print(idx)
-    print(count)
+    # for idx, val in enumerate(sample['task'][0]):
+    #     if val == 1.00:
+    #         print(idx)
+    # print(count)

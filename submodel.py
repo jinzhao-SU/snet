@@ -75,7 +75,7 @@ class SubNet(nn.Module):
 
 if __name__ == '__main__':
     net = SubNet()
-    subx = torch.rand(15, 4)
-    output = net(x_image = subx)
+    subx = torch.rand(15, 10000)
+    output = net(subx)
     print(output.shape)
     #15*100*100

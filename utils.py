@@ -90,12 +90,14 @@ def visualize_lstm_testing_result(prediction, label, batch_id, epoch):
         torchvision.utils.save_image(label_lstm, "/home/zjin04/data/uav_regression/testing_result/epoch_" + str(epoch) + "/lstm/" + str(idx + batch_id * 32) + "_label.png")
 
 
-def visualize_sum_testing_result(init, prediction,sub_prediction, label, batch_id, epoch, batch_size):
+def visualize_sum_testing_result(path,init, prediction,sub_prediction, label, batch_id, epoch, batch_size):
     assert prediction.shape[0] == label.shape[0], "prediction size and label size is not identical"
-    if not os.path.exists("/home/zjin04/data/uav_regression/testing_result/epoch_" + str(epoch)):
-        os.mkdir("/home/zjin04/data/uav_regression/testing_result/epoch_" + str(epoch))
-    if not os.path.exists("/home/zjin04/data/uav_regression/testing_result/epoch_" + str(epoch) + "/sum"):
-        os.mkdir("/home/zjin04/data/uav_regression/testing_result/epoch_" + str(epoch) + "/sum")
+    if not os.path.exists(path):
+        os.mkdir(path)
+    if not os.path.exists(path + "/epoch_" + str(epoch)):
+        os.mkdir(path + "/epoch_" + str(epoch))
+    if not os.path.exists(path + "/epoch_" + str(epoch) + "/sum"):
+        os.mkdir(path + "/epoch_" + str(epoch) + "/sum")
     # prediction_output_np = prediction.cpu().detach().numpy()
     # np.save("/home/zjin04/prediction.npy", prediction_output_np)
     # label_output_np = label.cpu().detach().numpy()
@@ -108,7 +110,8 @@ def visualize_sum_testing_result(init, prediction,sub_prediction, label, batch_i
         prediction_output = torch.squeeze(prediction_output)
 
         #print("sub_prediction.shape ", sub_prediction.shape)
-        sub_prediction_output = sub_prediction[idx][0][1].cpu().detach()
+        #4, 1, 60, 100, 100
+        sub_prediction_output = sub_prediction[idx][0][40].cpu().detach()
         sub_prediction_output = torch.squeeze(sub_prediction_output)
         #print("ub_prediction_output.shape ", sub_prediction_output.shape)
         label_output = label[idx].cpu().detach()
@@ -121,12 +124,12 @@ def visualize_sum_testing_result(init, prediction,sub_prediction, label, batch_i
         # plt.imshow(label_output)
         # plt.savefig("/home/zjin04/data/uav_regression/testing_result/epoch_" + str(epoch) + "/sum" + "/" + str(idx + batch_id * 32) +  "_label.png")
         # plt.close()
-        torchvision.utils.save_image(init_output, "/home/zjin04/data/uav_regression/testing_result/epoch_" + str(\
+        torchvision.utils.save_image(init_output, path + "/epoch_" + str(\
             epoch) + "/sum" + "/" + str(idx + batch_id * batch_size) + "_init.png")
-        torchvision.utils.save_image(sub_prediction_output, "/home/zjin04/data/uav_regression/testing_result/epoch_" + str(
+        torchvision.utils.save_image(sub_prediction_output, path + "/epoch_" + str(
             epoch) + "/sum" + "/" + str(idx + batch_id * batch_size) + "_sub_prediction.png")
-        torchvision.utils.save_image(prediction_output, "/home/zjin04/data/uav_regression/testing_result/epoch_" + str(epoch) + "/sum" + "/" + str(idx + batch_id * batch_size) +  "_prediction.png")
-        torchvision.utils.save_image(label_output, "/home/zjin04/data/uav_regression/testing_result/epoch_" + str(epoch) + "/sum" + "/" + str(idx + batch_id * batch_size ) +  "_label.png")
+        torchvision.utils.save_image(prediction_output, path + "/epoch_" + str(epoch) + "/sum" + "/" + str(idx + batch_id * batch_size) +  "_prediction.png")
+        torchvision.utils.save_image(label_output, path + "/epoch_" + str(epoch) + "/sum" + "/" + str(idx + batch_id * batch_size ) +  "_label.png")
 
 def visualize_sum_training_result(init, prediction,sub_prediction, label, batch_id, epoch, batch_size):
     assert prediction.shape[0] == label.shape[0], "prediction size and label size is not identical"
